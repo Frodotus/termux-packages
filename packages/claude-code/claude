@@ -1,50 +1,6 @@
-#!/usr/bin/env node
-'use strict';
-
-const fs = require('fs');
-const path = require('path');
-const { spawnSync } = require('child_process');
-
-const PREFIX = process.env.PREFIX || '/data/data/com.termux/files/usr';
-const LIB_DIR = path.join(PREFIX, 'lib', 'claude-code');
-const config = JSON.parse(fs.readFileSync(path.join(LIB_DIR, 'audited-versions.json'), 'utf8'));
-
-const version = process.env.CLAUDE_VERSION || config.default_version;
-const versionInfo = config.versions[version];
-
-if (!versionInfo) {
-    console.error(`Unsupported Claude Code version: ${version}`);
-    console.error(`Known versions: ${Object.keys(config.versions).join(', ')}`);
-    process.exit(1);
-}
-
-const cacheDir = process.env.CLAUDE_CACHE || path.join(process.env.HOME, '.cache', 'claude-code');
-const sourceBin = path.join(cacheDir, 'versions', version, 'claude');
-
-if (!fs.existsSync(sourceBin)) {
-    const r = spawnSync(process.execPath, [path.join(LIB_DIR, 'prepare-native.js'), version], {
-        stdio: 'inherit',
-        env: process.env,
-    });
-    if (r.status !== 0) process.exit(r.status === null ? 1 : r.status);
-}
-
-const workdir = path.join(cacheDir, 'versions', version, 'workdir');
-fs.mkdirSync(workdir, { recursive: true });
-
-const r = spawnSync(process.execPath, [path.join(LIB_DIR, 'run-native.js'), ...process.argv.slice(2)], {
-    stdio: 'inherit',
-    env: {
-        ...process.env,
-        SOURCE_BIN: sourceBin,
-        WORKDIR: workdir,
-        ENTRY_JS_OFFSET: String(versionInfo.entry_js_offset),
-        ENTRY_END_OFFSET: String(versionInfo.entry_end_offset),
-        CLAUDE_VERSION: version,
-        TMPDIR: process.env.TMPDIR || path.join(PREFIX, 'tmp'),
-        SSL_CERT_FILE: process.env.SSL_CERT_FILE || path.join(PREFIX, 'etc/tls/cert.pem'),
-        SSL_CERT_DIR: process.env.SSL_CERT_DIR || path.join(PREFIX, 'etc/tls'),
-        DISABLE_AUTOUPDATER: '1',
-    },
-});
-process.exit(r.status === null ? 1 : r.status);
+#!/data/data/com.termux/files/usr/bin/bash
+exec proot \
+  -b /data/data/com.termux/files/usr/etc/resolv.conf:/etc/resolv.conf \
+  -b /data/data/com.termux/files/usr/etc/tls/cert.pem:/etc/ssl/certs/ca-certificates.crt \
+  env -u LD_PRELOAD \
+  /data/data/com.termux/files/usr/lib/claude-code/claude-musl "$@"

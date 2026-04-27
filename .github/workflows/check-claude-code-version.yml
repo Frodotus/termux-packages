@@ -1,0 +1,39 @@
+name: Check for new Claude Code version
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check latest version
+        id: versions
+        run: |
+          LATEST=$(npm view @anthropic-ai/claude-code-linux-arm64-musl version)
+          CURRENT=$(grep TERMUX_PKG_VERSION packages/claude-code/build.sh | cut -d= -f2)
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Open PR if version changed
+        if: steps.versions.outputs.latest != steps.versions.outputs.current
+        run: |
+          LATEST="${{ steps.versions.outputs.latest }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "update/$LATEST"
+          sed -i "s/^TERMUX_PKG_VERSION=.*/TERMUX_PKG_VERSION=$LATEST/" packages/claude-code/build.sh
+          git add packages/claude-code/build.sh
+          git commit -m "Update claude-code to $LATEST"
+          git push origin "update/$LATEST"
+          gh pr create \
+            --title "Update claude-code to $LATEST" \
+            --body "Automated version bump for Claude Code $LATEST." \
+            --base main \
+            --head "update/$LATEST"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
