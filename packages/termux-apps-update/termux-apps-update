@@ -1,0 +1,20 @@
+#!/data/data/com.termux/files/usr/bin/bash
+CACHE="$HOME/.apps"
+LAUNCHERS="$HOME/.app-launchers"
+
+if [ ! -f "$CACHE" ]; then
+    echo "App cache not found. Open and close Termux to generate it." >&2
+    exit 1
+fi
+
+mkdir -p "$LAUNCHERS"
+rm -f "$LAUNCHERS"/*
+
+while IFS='|' read -r name component; do
+    stub=$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//')
+    [ -z "$stub" ] && continue
+    printf '#!/data/data/com.termux/files/usr/bin/bash\ntermux-am start -n "%s"\n' "$component" > "$LAUNCHERS/$stub"
+    chmod +x "$LAUNCHERS/$stub"
+done < "$CACHE"
+
+echo "Created $(ls "$LAUNCHERS" | wc -l) app launchers in $LAUNCHERS"
